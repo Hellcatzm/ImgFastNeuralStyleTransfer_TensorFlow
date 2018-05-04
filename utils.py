@@ -28,24 +28,27 @@ IMAGENET_STD = [0.229, 0.224,  0.225]
 
 
 def img_proprocess(image_row,
-                   image_size=224):
+                   image_size=224,
+                   process=True):
     """
     预处理图片
     :param image_row: 三维的图片张量
     :param image_size: 处理后图片尺寸
+    :param process: 是否进行均值方差操作
     :return: 预处理之后的四维图片张量
     """
     # 图片维度和尺寸调整
     image = tf.expand_dims(image_row, 0)
     image = tf.image.resize_bilinear(image, [image_size, image_size], align_corners=False)
     image.set_shape([1, image_size, image_size, 3])
-    # 各通道均值归零
-    num_channels = image.get_shape().as_list()[-1]
-    channels = tf.split(image, num_or_size_splits=num_channels, axis=3)
-    for i in range(num_channels):
-        channels[i] -= IMAGENET_MEAN[i]
-        # channels[i] = (channels[i]/255 - IMAGENET_MEAN[i])/IMAGENET_STD[i]
-    image = tf.concat(channels, axis=3)
+
+    if process:
+        num_channels = image.get_shape().as_list()[-1]
+        channels = tf.split(image, num_or_size_splits=num_channels, axis=3)
+        for i in range(num_channels):
+            channels[i] -= IMAGENET_MEAN[i]
+            # channels[i] = (channels[i]/255 - IMAGENET_MEAN[i])/IMAGENET_STD[i]
+        image = tf.concat(channels, axis=3)
     return image
 
 
@@ -135,7 +138,7 @@ def get_style_feature(style_path="img/mosaic.jpg",
 
         # vgg网络节点接口生成
         with slim.arg_scope(vgg.vgg_arg_scope(weight_decay=0.0)):  # 调用
-            _, endpoint = vgg.vgg_16(image, num_classes=1, is_training=False)
+            _, endpoint = vgg.vgg_16(image, num_classes=1, is_training=False, spatial_squeeze=False)
         features = []
         for layer in style_layers:
             feature = endpoint[layer]

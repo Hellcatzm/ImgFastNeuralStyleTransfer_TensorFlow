@@ -25,7 +25,7 @@ config.gpu_options.allow_growth = True
 class Config(object):
 
     data_root = 'train2017'  # 数据集存放路径：train2017/a.jpg
-    image_size = 224  # vgg16: To use in classification mode, resize input to 224x224.
+    image_size = 256  # vgg16: To use in classification mode, resize input to 224x224.
     batch_size = 8
     epoches = 2  # 训练epoch
 
@@ -107,13 +107,13 @@ def train(**kwargs):
                 img = sess.run(image)
                 # img_re = utils.image_rebuild(img[0])
                 # print(img[0])
-                plt.subplot(311)
-                plt.imshow(row)
-                plt.subplot(312)
-                plt.imshow(img[0])
+                # plt.subplot(311)
+                # plt.imshow(row)
+                # plt.subplot(312)
+                # plt.imshow(img[0])
                 # plt.subplot(313)
                 # plt.imshow(img_re)
-                plt.show()
+                # plt.show()
         except tf.errors.OutOfRangeError:
             tf.logging.info('Done training -- epoch limit reached')
         finally:
