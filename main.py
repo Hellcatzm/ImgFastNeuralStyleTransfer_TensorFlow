@@ -21,32 +21,29 @@ slim = tf.contrib.slim
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
-_R_MEAN = 123.68
-_G_MEAN = 116.78
-_B_MEAN = 103.94
-means = [_R_MEAN, _G_MEAN, _B_MEAN]
-# std = [0.229, 0.224, 0.225]
-
 
 class Config(object):
-    # vgg16: To use in classification mode, resize input to 224x224.
-    image_size = 224
-    batch_size = 8
+
     data_root = 'train2017'  # 数据集存放路径：train2017/a.jpg
-    num_workers = 4  # 多线程加载数据
-    use_gpu = True  # 使用GPU
-
-    style_path = 'style.jpg'  # 风格图片存放路径
-    lr = 1e-3  # 学习率
-
-    plot_every = 10  # 每10个batch可视化一次
-
+    image_size = 224  # vgg16: To use in classification mode, resize input to 224x224.
+    batch_size = 8
     epoches = 2  # 训练epoch
 
-    content_weight = 1e5  # content_loss 的权重
-    style_weight = 1e10  # style_loss的权重
+    model_path = "pretrained/vgg_16.ckpt"  # 预训练模型的路径
+    exclude_scopes = "vgg_16/fc"
 
-    model_path = None  # 预训练模型的路径
+    style_layers = ("vgg_16/conv1/conv1_2",
+                    "vgg_16/conv2/conv2_2",
+                    "vgg_16/conv3/conv3_3",
+                    "vgg_16/conv4/conv4_3")  # 风格学习层
+    style_path = "img/mosaic.jpg"  # 风格图片存放路径
+
+    content_layers = ["vgg_16/conv3/conv3_3", ]
+
+    lr = 1e-3  # 学习率
+    content_weight = 1  # content_loss 的权重
+    style_weight = 100  # style_loss的权重
+    plot_every = 10  # 每10个batch可视化一次
 
     content_path = 'input.png'  # 需要进行分割迁移的图片
     result_path = 'output.png'  # 风格迁移结果的保存路径
@@ -73,7 +70,7 @@ def train(**kwargs):
     # 图片格式解码
     image_row = tf.image.decode_png(img_bytes, channels=3) if png else tf.image.decode_jpeg(img_bytes, channels=3)
     # 预处理
-    image = utils.img_proprocess(image_row, opt.image_size, means)
+    image = utils.img_proprocess(image_row, opt.image_size)
     image_batch = tf.train.batch([tf.squeeze(image)], opt.batch_size, dynamic_pad=True)
 
     '''生成式网络生成数据'''
@@ -81,7 +78,8 @@ def train(**kwargs):
     generated = tf.image.resize_bilinear(generated, [opt.image_size, opt.image_size], align_corners=False)
     generated.set_shape([opt.batch_size, opt.image_size, opt.image_size, 3])
 
-    '''载入损失网络_VGG'''
+    '''数据流经损失网络_VGG'''
+    # 一次送入数据量为2×batch_size：[原始batch经生成式网络生成的数据 + 原始batch]
     with slim.arg_scope(vgg.vgg_arg_scope(weight_decay=0.0)):  # 调用
         _, endpoint = vgg.vgg_16(tf.concat([generated, image_batch], 0),
                                  num_classes=1, is_training=False, spatial_squeeze=False)
@@ -89,6 +87,15 @@ def train(**kwargs):
     for key in endpoint:
         tf.logging.info(key)
 
+    '''损失函数构建'''
+    style_gram = utils.get_style_feature(opt.style_path,
+                                         opt.image_size,
+                                         opt.style_layers,
+                                         opt.model_path,
+                                         opt.exclude_scopes)
+
+    '''测试部分'''
+    print('style_gram:', [f.shape for f in style_gram])
     with tf.Session(config=config) as sess:
         sess.run(tf.group(tf.global_variables_initializer(),
                           tf.local_variables_initializer()))
@@ -98,11 +105,14 @@ def train(**kwargs):
             while not coord.should_stop():
                 row = sess.run(image_row)
                 img = sess.run(image)
-                print(row.shape, img[0].shape)
-                # plt.subplot(211)
-                # plt.imshow(row)
-                # plt.subplot(212)
+                # img_re = utils.image_rebuild(img[0])
+                # print(img[0])
+                plt.subplot(311)
+                plt.imshow(row)
+                plt.subplot(312)
                 plt.imshow(img[0])
+                # plt.subplot(313)
+                # plt.imshow(img_re)
                 plt.show()
         except tf.errors.OutOfRangeError:
             tf.logging.info('Done training -- epoch limit reached')
@@ -112,6 +122,5 @@ def train(**kwargs):
 
 
 if __name__ == "__main__":
-    style_gram = utils.get_style_feature()
     train()
 

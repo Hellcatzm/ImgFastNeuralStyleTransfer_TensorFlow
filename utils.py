@@ -14,6 +14,7 @@ config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 """
 import os
+import numpy as np
 from nets import vgg
 import tensorflow as tf
 
@@ -21,15 +22,17 @@ slim = tf.contrib.slim
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
+IMAGENET_MEAN = [123.68, 116.78, 103.94]
+# IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224,  0.225]
+
 
 def img_proprocess(image_row,
-                   image_size=224,
-                   means=(122.5, 122.5, 122.5)):
+                   image_size=224):
     """
     预处理图片
     :param image_row: 三维的图片张量
     :param image_size: 处理后图片尺寸
-    :param means: 均值，三元素list
     :return: 预处理之后的四维图片张量
     """
     # 图片维度和尺寸调整
@@ -40,25 +43,34 @@ def img_proprocess(image_row,
     num_channels = image.get_shape().as_list()[-1]
     channels = tf.split(image, num_or_size_splits=num_channels, axis=3)
     for i in range(num_channels):
-        channels[i] -= means[i]
+        channels[i] -= IMAGENET_MEAN[i]
+        # channels[i] = (channels[i]/255 - IMAGENET_MEAN[i])/IMAGENET_STD[i]
     image = tf.concat(channels, axis=3)
     return image
 
 
-def param_load_fn(checkpoint_exclude_scopes="vgg_16/fc",
-                  loss_model_file="pretrained/vgg_16.ckpt"):
+# def image_rebuild(image):
+#     image_re = np.array(image)
+#     print(image_re.shape)
+#     for i in range(3):
+#         image_re[:, :, i] = image[:, :, i]*255#(image[:, :, i] + IMAGENET_MEAN[i])*255
+#     return image_re
+
+
+def param_load_fn(model_path="pretrained/vgg_16.ckpt",
+                  exclude_scopes="vgg_16/fc"):
     """
     自动获取图网络结构并载入预训练模型
-    :param checkpoint_exclude_scopes: 不予加载的节点的名称字符串："a,b"
-    :param loss_model_file: 模型文件位置，注意是所ckpt文件
+    :param model_path: 模型文件位置，注意是所ckpt文件
+    :param exclude_scopes: 不予加载的节点的名称字符串："a,b"
     :return: 
     """
-    tf.logging.info('Use pretrained model %s' % loss_model_file)
+    tf.logging.info('Use pretrained model %s' % model_path)
 
     exclusions = []
-    if checkpoint_exclude_scopes:  # "vgg_16/fc"
+    if exclude_scopes:  # "vgg_16/fc"
         exclusions = [scope.strip()  # 舍弃的节点的名称头集合
-                      for scope in checkpoint_exclude_scopes.split(',')]
+                      for scope in exclude_scopes.split(',')]
     variables_to_restore = []
     for var in slim.get_model_variables():  # 获取图中的变量
         excluded = False
@@ -71,7 +83,7 @@ def param_load_fn(checkpoint_exclude_scopes="vgg_16/fc",
             variables_to_restore.append(var)  # 添加进重载变量集合
     # 此函数调用时需要一个参数，sess，对应的模型只需要路径即可
     return slim.assign_from_checkpoint_fn(  # 从checkpoint中读取列表中的相应变量参数值的函数
-        loss_model_file,
+        model_path,
         variables_to_restore,
         ignore_missing_vars=True)
 
@@ -91,26 +103,28 @@ def gram(layer):
     return grams
 
 
-def get_style_feature(style_image="img/mosaic.jpg",
+def get_style_feature(style_path="img/mosaic.jpg",
                       image_size=224,
-                      means=(122.5, 122.5, 122.5),
                       style_layers=("vgg_16/conv1/conv1_2",
                                     "vgg_16/conv2/conv2_2",
                                     "vgg_16/conv3/conv3_3",
-                                    "vgg_16/conv4/conv4_3")):
+                                    "vgg_16/conv4/conv4_3"),
+                      model_path="pretrained/vgg_16.ckpt",
+                      exclude_scopes="vgg_16/fc"):
     """
     使用预训练的vgg网络，获取并return style层对应的特征
-    :param style_image: 
+    :param style_path: 
     :param image_size: 
-    :param means: 
-    :param style_layers: 
+    :param style_layers:
+    :param model_path:
+    :param exclude_scopes:
     :return: 由于使用单独的Graph，返回值为Array而非Tensor
     """
     with tf.Graph().as_default():
 
         # 风格图片载入
-        img_bytes = tf.read_file(style_image)
-        if style_image.lower().endswith('png'):
+        img_bytes = tf.read_file(style_path)
+        if style_path.lower().endswith('png'):
             image = tf.image.decode_png(img_bytes)
         else:
             image = tf.image.decode_jpeg(img_bytes)
@@ -130,13 +144,13 @@ def get_style_feature(style_image="img/mosaic.jpg",
 
         with tf.Session(config=config) as sess:
             # vgg网络预训练参数载入
-            param_init_fn = param_load_fn()
+            param_init_fn = param_load_fn(model_path, exclude_scopes)
             param_init_fn(sess)
 
             # Make sure the 'generated' directory is exists.
             if os.path.exists('generated') is False:
                 os.makedirs('generated')
-            style_name = style_image.split('/')[-1].split('.')[0]
+            style_name = style_path.split('/')[-1].split('.')[0]
             save_file = 'generated/target_style_' + style_name + '.jpg'
             with open(save_file, 'wb') as f:
 
@@ -144,7 +158,7 @@ def get_style_feature(style_image="img/mosaic.jpg",
                 num_channels = image.get_shape().as_list()[-1]
                 channels = tf.split(image, num_or_size_splits=num_channels, axis=3)
                 for i in range(num_channels):
-                    channels[i] += means[i]
+                    channels[i] += IMAGENET_MEAN[i]
                 target_image = tf.concat(channels, 3)
 
                 value = tf.image.encode_jpeg(tf.cast(target_image[0], tf.uint8))
