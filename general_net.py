@@ -158,6 +158,5 @@ def net(image, training):
     width = tf.shape(y)[2]
     y = tf.slice(y, [0, 10, 10, 0],
                  tf.stack([-1, height - 20, width - 20, -1]))  # Tensor("Slice:0", shape=(?, ?, ?, ?), dtype=float32)
-
     return y
 

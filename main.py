@@ -10,10 +10,14 @@ np.set_printoptions(threshold=np.inf)
 """
 
 import os
+import time
+import numpy as np
+from PIL import Image
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
 import utils
+import losses
 from nets import vgg
 from general_net import net
 
@@ -27,7 +31,7 @@ class Config(object):
     data_root = 'train2017'  # 数据集存放路径：train2017/a.jpg
     image_size = 256  # vgg16: To use in classification mode, resize input to 224x224.
     batch_size = 8
-    epoches = 2  # 训练epoch
+    epoches = 3  # 训练epoch
 
     model_path = "pretrained/vgg_16.ckpt"  # 预训练模型的路径
     exclude_scopes = "vgg_16/fc"
@@ -43,6 +47,7 @@ class Config(object):
     lr = 1e-3  # 学习率
     content_weight = 1  # content_loss 的权重
     style_weight = 100  # style_loss的权重
+    tv_weight = 0.0
     plot_every = 10  # 每10个batch可视化一次
 
     content_path = 'input.png'  # 需要进行分割迁移的图片
@@ -71,17 +76,21 @@ def train(**kwargs):
     image_row = tf.image.decode_png(img_bytes, channels=3) if png else tf.image.decode_jpeg(img_bytes, channels=3)
     # 预处理
     image = utils.img_proprocess(image_row, opt.image_size)
-    image_batch = tf.train.batch([tf.squeeze(image)], opt.batch_size, dynamic_pad=True)
+    image_batch = tf.train.batch([image], opt.batch_size, dynamic_pad=True)
 
     '''生成式网络生成数据'''
     generated = net(image_batch, training=True)
     generated = tf.image.resize_bilinear(generated, [opt.image_size, opt.image_size], align_corners=False)
     generated.set_shape([opt.batch_size, opt.image_size, opt.image_size, 3])
+    # unstack将指定维度拆分为1后降维，split随意指定拆分后维度值且不会自动降维
+    # processed_generated = tf.stack([utils.img_proprocess(tf.squeeze(img, axis=0), opt.image_size)
+    #                                 for img in tf.split(generated, num_or_size_splits=opt.batch_size, axis=0)])
+    processed_generated = tf.stack([utils.img_proprocess(img, opt.image_size) for img in tf.unstack(generated, axis=0)])
 
     '''数据流经损失网络_VGG'''
     # 一次送入数据量为2×batch_size：[原始batch经生成式网络生成的数据 + 原始batch]
     with slim.arg_scope(vgg.vgg_arg_scope(weight_decay=0.0)):  # 调用
-        _, endpoint = vgg.vgg_16(tf.concat([generated, image_batch], 0),
+        _, endpoint = vgg.vgg_16(tf.concat([processed_generated, image_batch], 0),
                                  num_classes=1, is_training=False, spatial_squeeze=False)
     tf.logging.info('Loss network layers(You can define them in "content_layers" and "style_layers"):')
     for key in endpoint:
@@ -93,34 +102,106 @@ def train(**kwargs):
                                          opt.style_layers,
                                          opt.model_path,
                                          opt.exclude_scopes)
+    content_loss, content_loss_summary = losses.content_loss(endpoint, opt.content_layers)
+    style_loss, style_loss_summary = losses.style_loss(endpoint, style_gram, opt.style_layers)
+    tv_loss = losses.total_variation_loss(generated)  # use the unprocessed image, 我们想要的图像也是这个
+    loss = opt.style_weight * style_loss + opt.content_weight * content_loss + opt.tv_weight * tv_loss
 
-    '''测试部分'''
-    print('style_gram:', [f.shape for f in style_gram])
+    '''优化器构建'''
+    # 优化器维护非vgg16的可训练变量
+    variable_to_train = []
+    for variable in tf.trainable_variables():
+        if not (variable.name.startswith("vgg16")):  # "vgg16"
+            variable_to_train.append(variable)
+
+    global_step = tf.Variable(0, name="global_step", trainable=False)
+    train_op = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step, var_list=variable_to_train)
+
+    '''存储器构建'''
+    # 存储器保存非vgg16的全局变量
+
+    # tf.global_variables()：返回全局变量。
+    # 全局变量是分布式环境中跨计算机共享的变量。该Variable()构造函数或get_variable()
+    # 自动将新变量添加到图形集合：GraphKeys.GLOBAL_VARIABLES。这个方便函数返回该集合的内容。
+    # 全局变量的替代方法是局部变量。参考：tf.local_variables
+    variables_to_restore = []  # 比trainable多出的主要是用于bp的变量
+    for variable in tf.local_variables():
+        if not (variable.name.startswith("vgg16")):  # "vgg16"
+            variables_to_restore.append(variable)
+
+    saver = tf.train.Saver(var_list=variables_to_restore, write_version=tf.train.SaverDef.V2)
+
+    '''训练'''
     with tf.Session(config=config) as sess:
         sess.run(tf.group(tf.global_variables_initializer(),
                           tf.local_variables_initializer()))
+
+        # vgg网络预训练参数载入
+        param_init_fn = utils.param_load_fn(opt.model_path, opt.exclude_scopes)
+        param_init_fn(sess)
+
+        # 由于使用saver，故载入变量不包含vgg16相关变量
+        model_path = "./logs/model"
+        if not os.path.exists(model_path):
+            os.makedirs(model_path)
+        ckpt = tf.train.get_checkpoint_state(model_path)
+        if ckpt:
+            tf.logging.info("Success to read {}".format(ckpt.model_checkpoint_path))
+            saver.restore(sess, ckpt.model_checkpoint_path)
+        else:
+            tf.logging.info("Failed to find a checkpoint")
+
         coord = tf.train.Coordinator()  # 线程控制器
         threads = tf.train.start_queue_runners(coord=coord)  # 启动队列
+        start_time = time.time()  # 计时开始
         try:
             while not coord.should_stop():
-                row = sess.run(image_row)
-                img = sess.run(image)
-                # img_re = utils.image_rebuild(img[0])
-                # print(img[0])
-                # plt.subplot(311)
-                # plt.imshow(row)
-                # plt.subplot(312)
-                # plt.imshow(img[0])
-                # plt.subplot(313)
-                # plt.imshow(img_re)
-                # plt.show()
+                _, loss_t, step = sess.run([train_op, loss, global_step])
+                elapsed_time = time.time() - start_time
+                start_time = time.time()
+                if step % 10 == 0:
+                    tf.logging.info('step: {0}, total Loss {1:f}, secs/step: {2:f}'.
+                                    format(step, loss_t, elapsed_time))
+                if step % 1000 == 0:
+                    saver.save(sess, os.path.join(model_path, 'fast_style_model'), global_step=step)
+                    img = sess.run(generated)
+                    img = Image.fromarray(np.uint8(img))
+                    img.save('./保存图像/{}.png'.format(step))
         except tf.errors.OutOfRangeError:
-            tf.logging.info('Done training -- epoch limit reached')
+            saver.save(sess, os.path.join(model_path, 'fast_style_model'))
+            tf.logging.info('Epoch limit reached')
         finally:
             coord.request_stop()
         coord.join(threads)
 
+    '''测试部分'''
+    # print('style_gram:', [f.shape for f in style_gram])
+    # with tf.Session(config=config) as sess:
+    #     sess.run(tf.group(tf.global_variables_initializer(),
+    #                       tf.local_variables_initializer()))
+    #     coord = tf.train.Coordinator()  # 线程控制器
+    #     threads = tf.train.start_queue_runners(coord=coord)  # 启动队列
+    #     try:
+    #         while not coord.should_stop():
+    #             row = sess.run(image_row)
+    #             img = sess.run(image)
+    #             # img_re = utils.image_rebuild(img[0])
+    #             # print(img[0])
+    #             # plt.subplot(311)
+    #             # plt.imshow(row)
+    #             # plt.subplot(312)
+    #             # plt.imshow(img[0])
+    #             # plt.subplot(313)
+    #             # plt.imshow(img_re)
+    #             # plt.show()
+    #     except tf.errors.OutOfRangeError:
+    #         tf.logging.info('Done training -- epoch limit reached')
+    #     finally:
+    #         coord.request_stop()
+    #     coord.join(threads)
+
 
 if __name__ == "__main__":
+    tf.logging.set_verbosity(tf.logging.INFO)
     train()
 

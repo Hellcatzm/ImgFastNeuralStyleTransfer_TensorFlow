@@ -35,7 +35,7 @@ def img_proprocess(image_row,
     :param image_row: 三维的图片张量
     :param image_size: 处理后图片尺寸
     :param process: 是否进行均值方差操作
-    :return: 预处理之后的四维图片张量
+    :return: 预处理之后的三维图片张量
     """
     # 图片维度和尺寸调整
     image = tf.expand_dims(image_row, 0)
@@ -49,7 +49,7 @@ def img_proprocess(image_row,
             channels[i] -= IMAGENET_MEAN[i]
             # channels[i] = (channels[i]/255 - IMAGENET_MEAN[i])/IMAGENET_STD[i]
         image = tf.concat(channels, axis=3)
-    return image
+    return tf.squeeze(image)
 
 
 # def image_rebuild(image):
@@ -75,7 +75,7 @@ def param_load_fn(model_path="pretrained/vgg_16.ckpt",
         exclusions = [scope.strip()  # 舍弃的节点的名称头集合
                       for scope in exclude_scopes.split(',')]
     variables_to_restore = []
-    for var in slim.get_model_variables():  # 获取图中的变量
+    for var in slim.get_model_variables():  # 获取model_variables
         excluded = False
         for exclusion in exclusions:  # 获取舍弃头字符
             # 对于所有的舍弃头，判断当前变量对应节点是否从属于其
@@ -134,7 +134,7 @@ def get_style_feature(style_path="img/mosaic.jpg",
         if image.get_shape().ndims != 3:
             raise ValueError('Input must be of size [height, width, C>0]')
 
-        image = img_proprocess(image, image_size)
+        image = tf.expand_dims(img_proprocess(image, image_size), axis=0)
 
         # vgg网络节点接口生成
         with slim.arg_scope(vgg.vgg_arg_scope(weight_decay=0.0)):  # 调用
