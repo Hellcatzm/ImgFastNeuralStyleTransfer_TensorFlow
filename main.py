@@ -30,8 +30,8 @@ class Config(object):
 
     data_root = 'train2017'  # 数据集存放路径：train2017/a.jpg
     image_size = 256  # vgg16: To use in classification mode, resize input to 224x224.
-    batch_size = 8
-    epoches = 3  # 训练epoch
+    batch_size = 4
+    epoches = 2  # 训练epoch
 
     model_path = "pretrained/vgg_16.ckpt"  # 预训练模型的路径
     exclude_scopes = "vgg_16/fc"
@@ -48,10 +48,6 @@ class Config(object):
     content_weight = 1  # content_loss 的权重
     style_weight = 100  # style_loss的权重
     tv_weight = 0.0
-    plot_every = 10  # 每10个batch可视化一次
-
-    content_path = 'input.png'  # 需要进行分割迁移的图片
-    result_path = 'output.png'  # 风格迁移结果的保存路径
 
 
 def train(**kwargs):
@@ -111,7 +107,7 @@ def train(**kwargs):
     # 优化器维护非vgg16的可训练变量
     variable_to_train = []
     for variable in tf.trainable_variables():
-        if not (variable.name.startswith("vgg16")):  # "vgg16"
+        if not (variable.name.startswith("vgg_16")):  # "vgg16"
             variable_to_train.append(variable)
 
     global_step = tf.Variable(0, name="global_step", trainable=False)
@@ -125,12 +121,20 @@ def train(**kwargs):
     # 自动将新变量添加到图形集合：GraphKeys.GLOBAL_VARIABLES。这个方便函数返回该集合的内容。
     # 全局变量的替代方法是局部变量。参考：tf.local_variables
     variables_to_restore = []  # 比trainable多出的主要是用于bp的变量
-    for variable in tf.local_variables():
-        if not (variable.name.startswith("vgg16")):  # "vgg16"
+    for variable in tf.global_variables():
+        if not (variable.name.startswith("vgg_16")):  # "vgg16"
             variables_to_restore.append(variable)
 
     saver = tf.train.Saver(var_list=variables_to_restore, write_version=tf.train.SaverDef.V2)
 
+    print(variables_to_restore)
+
+    with open('train_v.txt', 'w') as f:
+        for s in variable_to_train:
+            f.write(s.name + '\n')
+    with open('restore_v.txt', 'w') as f:
+        for s in variables_to_restore:
+            f.write(s.name + '\n')
     '''训练'''
     with tf.Session(config=config) as sess:
         sess.run(tf.group(tf.global_variables_initializer(),
@@ -159,14 +163,25 @@ def train(**kwargs):
                 _, loss_t, step = sess.run([train_op, loss, global_step])
                 elapsed_time = time.time() - start_time
                 start_time = time.time()
+
                 if step % 10 == 0:
-                    tf.logging.info('step: {0}, total Loss {1:f}, secs/step: {2:f}'.
+                    tf.logging.info('step: {0:d}, total Loss {1:.2f}, secs/step: {2:.3f}'.
                                     format(step, loss_t, elapsed_time))
+                    # if not os.path.exists('./保存图像'):
+                    #     os.makedirs('./保存图像')
+                    # img_0 = sess.run(image_batch)[0]
+                    # img = sess.run(generated)[0]
+                    # try:
+                    #     img_0 = Image.fromarray(np.uint8(img_0))
+                    #     img_0.save('./保存图像/{}_.png'.format(step))
+                    #     img = Image.fromarray(np.uint8(img))
+                    #     img.save('./保存图像/{}.png'.format(step))
+                    # except BaseException as e:
+                    #     tf.logging.info(e)
+
                 if step % 1000 == 0:
                     saver.save(sess, os.path.join(model_path, 'fast_style_model'), global_step=step)
-                    img = sess.run(generated)
-                    img = Image.fromarray(np.uint8(img))
-                    img.save('./保存图像/{}.png'.format(step))
+
         except tf.errors.OutOfRangeError:
             saver.save(sess, os.path.join(model_path, 'fast_style_model'))
             tf.logging.info('Epoch limit reached')
