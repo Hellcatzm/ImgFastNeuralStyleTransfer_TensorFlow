@@ -3,7 +3,7 @@
 ### 日志
 #### 18.5.7
 ##### 1、改正`main.py`中"tf.local_variables"为"tf.global_variables"
-之前测试时修改过去忘记改回来了，这导致局部变量epoch被保存，导致之后的训练如果继承了前面训练过得模型会继承epoch信息直接退出，另由于没有载入模型参数(均为global_variables)会不收敛<br>
+之前测试时修改过去忘记改回来了，这导致局部变量epoch被保存，导致之后的训练如果继承了前面训练过得模型会继承epoch信息报告到达预定轮数直接退出，另由于没有载入模型参数(均为global_variables)会导致训练不收敛<br>
 ##### 2、改正`main.py`中两处"vgg16"为"vgg_16"
 这个疏忽导致"variables_to_train"和"variables_to_restore"收集变量异常，进而导致网络不收敛<br>
 ##### 3、改正训练循环中的保存图片机制
