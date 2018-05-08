@@ -22,7 +22,9 @@
 `main.py`:主文件，整合了整个网络图景，并含有训练过程的逻辑<br>
 `utils.py`:辅助函数，包含图片预处理、gram矩阵计算以及风格图片gram矩阵获得等函数<br>
 
-## 部分结果展示
+## 迁移风格展示
+这里展示一张训练中得到的监测图
+![](https://github.com/Hellcatzm/FastNeuralStyleTransfer_tensorflow/blob/master/%E6%95%88%E6%9E%9C%E7%A4%BA%E6%84%8F%E5%9B%BE.png)
 
 ## 项目网络结构
 ![](https://github.com/Hellcatzm/FastNeuralStyleTransfer_tensorflow/blob/master/%E7%BD%91%E7%BB%9C%E7%BB%93%E6%9E%84%E7%A4%BA%E6%84%8F%E5%9B%BE.png "项目结构可视化")
