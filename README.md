@@ -2,7 +2,6 @@
 =============
 ## 资源
 [vgg16预训练模型](http://download.tensorflow.org/models/vgg_16_2016_08_28.tar.gz)<br>
-
 [COCO2017训练数据](http://images.cocodataset.org/zips/train2017.zip)<br>
 [COCO2017训练标签](http://images.cocodataset.org/annotations/annotations_trainval2017.zip)<br>
 [COCO2017验证数据](http://images.cocodataset.org/zips/val2017.zip)<br>
@@ -10,6 +9,9 @@
 [COCO2017测试数据](http://images.cocodataset.org/zips/test2017.zip)<br>
 [COCO2017测试标签](http://images.cocodataset.org/annotations/image_info_test2017.zip)<br>
 本次实验仅仅是用来训练数据(不含标签)，后面的5个链接是为了数据完整性给出的，针对本次实验不需下载。
+
+## 结构
+[图](https://github.com/Hellcatzm/FastNeuralStyleTransfer_tensorflow/blob/master/%E7%BD%91%E7%BB%9C%E7%BB%93%E6%9E%84%E7%A4%BA%E6%84%8F%E5%9B%BE.png "项目结构可视化")
 
 ## 日志
 #### 18.5.7
