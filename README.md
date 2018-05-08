@@ -13,6 +13,15 @@
 [COCO2017测试数据](http://images.cocodataset.org/zips/test2017.zip)<br>
 [COCO2017测试标签](http://images.cocodataset.org/annotations/image_info_test2017.zip)<br>
 
+
+## 项目文件介绍
+`net`:放置官方使用slim模块实现的网络模型<br>
+`train2017`:下面存放图片数据，即COCO数据<br>
+`general_net.py`:用于生成风格迁移图片的网络<br>
+`losses.py`:损失函数集合，包含风格损失计算，内容损失计算，以及平滑损失计算<br>
+`main.py`:主文件，整合了整个网络图景，并含有训练过程的逻辑<br>
+`utils.py`:辅助函数，包含图片预处理、gram矩阵计算以及风格图片gram矩阵获得等函数<br>
+
 ## 部分结果展示
 
 ## 项目网络结构
