@@ -1,19 +1,24 @@
 快速风格迁移实践
 =============
-## 资源
+## 可用资源下载
+
+训练模型为slim预训练资源<br>
 [vgg16预训练模型](http://download.tensorflow.org/models/vgg_16_2016_08_28.tar.gz)<br>
+
+本次实验仅仅是用来训练数据(不含标签)，后面的5个链接是为了数据完整性给出的，针对本次实验不需下载<br>
 [COCO2017训练数据](http://images.cocodataset.org/zips/train2017.zip)<br>
 [COCO2017训练标签](http://images.cocodataset.org/annotations/annotations_trainval2017.zip)<br>
 [COCO2017验证数据](http://images.cocodataset.org/zips/val2017.zip)<br>
 [COCO2017验证标签](http://images.cocodataset.org/annotations/stuff_annotations_trainval2017.zip)<br>
 [COCO2017测试数据](http://images.cocodataset.org/zips/test2017.zip)<br>
 [COCO2017测试标签](http://images.cocodataset.org/annotations/image_info_test2017.zip)<br>
-本次实验仅仅是用来训练数据(不含标签)，后面的5个链接是为了数据完整性给出的，针对本次实验不需下载。
 
-## 结构
-![图](https://github.com/Hellcatzm/FastNeuralStyleTransfer_tensorflow/blob/master/%E7%BD%91%E7%BB%9C%E7%BB%93%E6%9E%84%E7%A4%BA%E6%84%8F%E5%9B%BE.png "项目结构可视化")
+## 部分结果展示
 
-## 日志
+## 项目网络结构
+![](https://github.com/Hellcatzm/FastNeuralStyleTransfer_tensorflow/blob/master/%E7%BD%91%E7%BB%9C%E7%BB%93%E6%9E%84%E7%A4%BA%E6%84%8F%E5%9B%BE.png "项目结构可视化")
+
+## 更新日志
 #### 18.5.7
 ##### 1、改正`main.py`中"tf.local_variables"为"tf.global_variables"
 之前测试时修改过去忘记改回来了，这导致局部变量epoch被保存，导致之后的训练如果继承了前面训练过得模型会继承epoch信息报告到达预定轮数直接退出，另由于没有载入模型参数(均为global_variables)会导致训练不收敛<br>
