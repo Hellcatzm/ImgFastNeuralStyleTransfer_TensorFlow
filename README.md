@@ -1,7 +1,7 @@
 快速风格迁移实践
 =============
 ## 资源
-(vgg16预训练模型)[http://download.tensorflow.org/models/vgg_16_2016_08_28.tar.gz]<br>
+[vgg16预训练模型](http://download.tensorflow.org/models/vgg_16_2016_08_28.tar.gz)<br>
 
 ## 日志
 #### 18.5.7
