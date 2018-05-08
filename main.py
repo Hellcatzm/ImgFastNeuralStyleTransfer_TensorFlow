@@ -30,8 +30,8 @@ class Config(object):
 
     data_root = 'train2017'  # 数据集存放路径：train2017/a.jpg
     image_size = 256  # vgg16: To use in classification mode, resize input to 224x224.
-    batch_size = 4
-    epoches = 2  # 训练epoch
+    batch_size = 10
+    epoches = 3  # 训练epoch
 
     model_path = "pretrained/vgg_16.ckpt"  # 预训练模型的路径
     exclude_scopes = "vgg_16/fc"
@@ -105,13 +105,13 @@ def train(**kwargs):
 
     '''优化器构建'''
     # 优化器维护非vgg16的可训练变量
-    variable_to_train = []
+    variables_to_train = []
     for variable in tf.trainable_variables():
         if not (variable.name.startswith("vgg_16")):  # "vgg16"
-            variable_to_train.append(variable)
+            variables_to_train.append(variable)
 
     global_step = tf.Variable(0, name="global_step", trainable=False)
-    train_op = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step, var_list=variable_to_train)
+    train_op = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step, var_list=variables_to_train)
 
     '''存储器构建'''
     # 存储器保存非vgg16的全局变量
@@ -127,16 +127,37 @@ def train(**kwargs):
 
     saver = tf.train.Saver(var_list=variables_to_restore, write_version=tf.train.SaverDef.V2)
 
-    print(variables_to_restore)
+    """添加监测项"""
+    # 添加总体loss监测
+    tf.summary.scalar('losses/content_loss', content_loss)
+    tf.summary.scalar('losses/style_loss', style_loss)
+    tf.summary.scalar('losses/regularizer_loss', tv_loss)
+    tf.summary.scalar('weighted_losses/weighted_content_loss', content_loss * opt.content_weight)
+    tf.summary.scalar('weighted_losses/weighted_style_loss', style_loss * opt.style_weight)
+    tf.summary.scalar('weighted_losses/weighted_regularizer_loss', tv_loss * opt.tv_weight)
+    tf.summary.scalar('total_loss', loss)
+    # 添加各层style loss监测
+    for layer in opt.style_layers:
+        tf.summary.scalar('style_losses/' + layer, style_loss_summary[layer])
+    # 监测生成图监测
+    tf.summary.image('generated', generated)
+    # tf.image_summary('processed_generated', processed_generated)  # May be better?
+    # 添加原图监测
+    tf.summary.image('origin', image_batch)
 
-    with open('train_v.txt', 'w') as f:
-        for s in variable_to_train:
-            f.write(s.name + '\n')
-    with open('restore_v.txt', 'w') as f:
-        for s in variables_to_restore:
-            f.write(s.name + '\n')
+    summary_path = "./logs"
+    model_path = "./logs/model"
+    summary = tf.summary.merge_all()
+    # with open('train_v.txt', 'w') as f:
+    #     for s in variable_to_train:
+    #         f.write(s.name + '\n')
+    # with open('restore_v.txt', 'w') as f:
+    #     for s in variables_to_restore:
+    #         f.write(s.name + '\n')
+
     '''训练'''
     with tf.Session(config=config) as sess:
+        writer = tf.summary.FileWriter(summary_path, sess.graph) 
         sess.run(tf.group(tf.global_variables_initializer(),
                           tf.local_variables_initializer()))
 
@@ -145,7 +166,6 @@ def train(**kwargs):
         param_init_fn(sess)
 
         # 由于使用saver，故载入变量不包含vgg16相关变量
-        model_path = "./logs/model"
         if not os.path.exists(model_path):
             os.makedirs(model_path)
         ckpt = tf.train.get_checkpoint_state(model_path)
@@ -164,21 +184,14 @@ def train(**kwargs):
                 elapsed_time = time.time() - start_time
                 start_time = time.time()
 
-                if step % 10 == 0:
+                if step % 50 == 0:
                     tf.logging.info('step: {0:d}, total Loss {1:.2f}, secs/step: {2:.3f}'.
                                     format(step, loss_t, elapsed_time))
-                    # if not os.path.exists('./保存图像'):
-                    #     os.makedirs('./保存图像')
-                    # img_0 = sess.run(image_batch)[0]
-                    # img = sess.run(generated)[0]
-                    # try:
-                    #     img_0 = Image.fromarray(np.uint8(img_0))
-                    #     img_0.save('./保存图像/{}_.png'.format(step))
-                    #     img = Image.fromarray(np.uint8(img))
-                    #     img.save('./保存图像/{}.png'.format(step))
-                    # except BaseException as e:
-                    #     tf.logging.info(e)
-
+                if step % 100 == 0:
+                    tf.logging.info('adding summary...')
+                    summary_str = sess.run(summary)
+                    writer.add_summary(summary_str, step)
+                    writer.flush()
                 if step % 1000 == 0:
                     saver.save(sess, os.path.join(model_path, 'fast_style_model'), global_step=step)
 
@@ -188,8 +201,9 @@ def train(**kwargs):
         finally:
             coord.request_stop()
         coord.join(threads)
+        writer.close()
 
-    '''测试部分'''
+    '''调试输出'''
     # print('style_gram:', [f.shape for f in style_gram])
     # with tf.Session(config=config) as sess:
     #     sess.run(tf.group(tf.global_variables_initializer(),
