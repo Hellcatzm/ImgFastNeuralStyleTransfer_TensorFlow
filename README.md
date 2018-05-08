@@ -1,6 +1,9 @@
 快速风格迁移实践
 =============
-### 日志
+## 资源
+(vgg16预训练模型)[http://download.tensorflow.org/models/vgg_16_2016_08_28.tar.gz]<br>
+
+## 日志
 #### 18.5.7
 ##### 1、改正`main.py`中"tf.local_variables"为"tf.global_variables"
 之前测试时修改过去忘记改回来了，这导致局部变量epoch被保存，导致之后的训练如果继承了前面训练过得模型会继承epoch信息报告到达预定轮数直接退出，另由于没有载入模型参数(均为global_variables)会导致训练不收敛<br>
