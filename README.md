@@ -55,3 +55,6 @@ if not os.path.exists('./保存图像'):
 ```Python
 _, loss_t, step, img_raw, img_gen = sess.run([train_op, loss, global_step, image_batch, generated])
 ```
+#### 18.5.10
+##### 添加文件`style_image_gen.py`
+利用这个程序和训练好的模型可以将自己的图片轻松的进行风格迁移。
