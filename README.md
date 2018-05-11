@@ -57,4 +57,4 @@ _, loss_t, step, img_raw, img_gen = sess.run([train_op, loss, global_step, image
 ```
 #### 18.5.10
 ##### 添加文件`style_image_gen.py`
-利用这个程序和训练好的模型可以将自己的图片轻松的进行风格迁移。
+这个程序可以加载已训练好的模型文件，将自己的图片轻松的进行风格迁移。
