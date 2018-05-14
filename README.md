@@ -23,6 +23,26 @@
 `style_image_gen.py`:使用训练好的模型，将自己的图片加载上进行风格迁移<br>
 `utils.py`:辅助函数，包含图片预处理、gram矩阵计算以及风格图片gram矩阵获得等函数<br>
 
+## 脚本运行指南
+训练和迁移自己的图片都很简单，训练时如下即可：
+```Shell
+python main.py
+```
+然后新建终端，输入，
+```Shell
+tensorboard --logdir=./logs
+```
+就可以在浏览器上输出相关报告了。
+训练结束后，或者只要有模型生成就可以，打开编辑脚本`style_image_gen.py`，找到如下一行（20行左右），将图片修改成需要迁移的图片路径，
+```Python
+text_img = './000000000036.jpg'
+```
+保存后命令行输入：
+```Shell
+python style_image_gen.py
+```
+即可输出对自己模型的迁移结果。
+
 ## 迁移风格展示
 这里展示一张训练中得到的监测图
 ![](https://github.com/Hellcatzm/FastNeuralStyleTransfer_tensorflow/blob/master/%E6%95%88%E6%9E%9C%E7%A4%BA%E6%84%8F%E5%9B%BE.png)
