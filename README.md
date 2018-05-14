@@ -32,7 +32,7 @@ python main.py
 ```Shell
 tensorboard --logdir=./logs
 ```
-就可以在浏览器上输出相关报告了。
+就可以在浏览器上输出相关报告了。<br>
 训练结束后，或者只要有模型生成就可以，打开编辑脚本`style_image_gen.py`，找到如下一行（20行左右），将图片修改成需要迁移的图片路径，
 ```Python
 text_img = './000000000036.jpg'
